@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv/
+venv/
+ENV/
+env/
+
+# PyCharm / VSCode IDE config
+.idea/
+
+# Logs and temp
+*.log
+*.sqlite3
+*.db
+*.tmp
+
+# Mac / Linux / Windows system files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints
+
+# Mypy / Pyright / Coverage / Lint
+.mypy_cache/
+.pyright/
+.coverage
+htmlcov/
+
+# FastAPI auto-generated OpenAPI
+openapi.json
