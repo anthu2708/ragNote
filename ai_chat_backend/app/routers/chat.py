@@ -9,7 +9,6 @@ from app.schemas.chat import ChatResponse
 from app.utils.dependencies import get_db, get_current_user
 from app.models import Chat, User
 from app.schemas.chat import ChatListItem
-from app.utils.time import time_since
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
