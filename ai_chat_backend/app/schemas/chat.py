@@ -26,5 +26,5 @@ class ChatAskResponse(BaseModel):
 class ChatListItem(BaseModel):
     id: UUID
     title: str
-    created: str
+    created: datetime
 
