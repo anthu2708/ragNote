@@ -14,3 +14,17 @@ class ChatResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class ChatAskRequest(BaseModel):
+    chat_id: UUID
+    question: str
+
+class ChatAskResponse(BaseModel):
+    ans: str
+
+
+class ChatListItem(BaseModel):
+    id: UUID
+    title: str
+    created: str
+
