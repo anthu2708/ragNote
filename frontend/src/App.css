@@ -1,0 +1,62 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.gradient-stroke {
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: 24px;
+}
+
+.gradient-stroke::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 0.7px; /* mỏng hơn, đúng Figma */
+  background: linear-gradient(145deg, rgba(255,255,255,0.5) 0%, rgba(109,109,109,0.3) 76%, rgba(112,64,150,0.1) 100%);
+  border-radius: 24px;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box no-repeat,
+    linear-gradient(#fff 0 0) no-repeat;
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  z-index: 1;
+}
+
+
