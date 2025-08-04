@@ -9,7 +9,6 @@ class RoleType(str, Enum):
     assistant = "assistant"
 
 class MessageCreate(BaseModel):
-    role: RoleType
     content: str
     chat_id: UUID
 
