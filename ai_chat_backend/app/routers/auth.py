@@ -10,7 +10,8 @@ from app.schemas.user import UserOut, LoginResponse
 import logging
 from fastapi import Cookie, HTTPException
 from fastapi.responses import JSONResponse
-
+from app.models import User
+from app.utils.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -62,4 +63,9 @@ async def refresh_token(
         max_age=60 * 60
     )
     return LoginResponse(user=user_out, token=new_token)
+
+@router.get("/me", response_model=UserOut)
+async def get_me(user: User = Depends(get_current_user)):
+    return UserOut.from_orm(user)
+
 
