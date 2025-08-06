@@ -44,9 +44,16 @@ export const sendMessageToAI = async (
   chatId: string,
   message: string
 ): Promise<Message> => {
+  const trimmedChatId = chatId?.trim();
+  const trimmedMessage = message?.trim();
+
+  if (!trimmedChatId || !trimmedMessage) {
+    throw new Error("Invalid chatId or message");
+  }
+
   const res = await axios.post<Message>(
     "/ai/ask",
-    { chat_id: chatId, message },
+    { chat_id: trimmedChatId, question: trimmedMessage },
     { withCredentials: true }
   );
   return res.data;
