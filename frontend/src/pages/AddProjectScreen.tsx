@@ -3,27 +3,44 @@ import Sidebar from "../components/Sidebar";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpTrayIcon } from "@heroicons/react/24/outline";
 import Footer from "../components/Footer";
+import { createChat } from "../utils/api"; // ✅ nhớ import
 
 const AddProjectScreen: React.FC = () => {
   const navigate = useNavigate();
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(""); // chưa dùng
   const [fileName, setFileName] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null); // ✅ file state
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFileName(e.target.files[0].name);
+      setFile(e.target.files[0]);
     }
   };
 
-return (
-  <div className="flex min-h-screen bg-cover bg-center bg-[url('/src/assets/bg.png')]">
-    <Sidebar />
-    <div className="flex flex-col flex-1 min-h-screen">
-      <div className="flex-1 flex flex-col sm:pl-60 px-8 py-14">
+  const handleCreate = async () => {
+    if (!name || !file) {
+      alert("Please enter project name and upload a file.");
+      return;
+    }
 
-          <div className=" sm:pl-10 ">
+    try {
+      await createChat(name, file);
+      navigate("/dashboard");
+    } catch (err) {
+      console.error("Failed to create project", err);
+      alert("Failed to create project.");
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen bg-cover bg-center bg-[url('/src/assets/bg.png')]">
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-h-screen">
+        <div className="flex-1 flex flex-col sm:pl-60 px-8 py-14">
+          <div className="sm:pl-10">
             <h1 className="text-5xl font-bold text-white mb-2">Create New Project</h1>
             <p className="text-white/70 text-lg mb-8">This is where our journey start...</p>
 
@@ -68,9 +85,7 @@ return (
                 <div className="flex justify-end gap-4">
                   <button
                     className="px-8 py-3 rounded-full bg-white/20 text-white font-semibold backdrop-blur-xl hover:bg-white/30 transition shadow-lg"
-                    onClick={() => {
-                      // handle create logic
-                    }}
+                    onClick={handleCreate}
                   >
                     Create
                   </button>
