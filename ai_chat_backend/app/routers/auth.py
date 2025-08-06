@@ -30,7 +30,14 @@ async def login(data: UserLogin,
 
     user_out = UserOut.from_orm(user)
 
-    response.set_cookie("access_token", token, httponly=True)
+    response.set_cookie(
+        "access_token",
+        token,
+        httponly=True,
+        samesite="Lax",  # hoặc "None" nếu dùng HTTPS
+        secure=False,  # dùng True nếu deploy qua HTTPS
+        max_age=60 * 60 * 24,
+    )
 
     return LoginResponse(user=user_out, token=token)
 
@@ -60,7 +67,8 @@ async def refresh_token(
         new_token,
         httponly=True,
         samesite="lax",
-        max_age=60 * 60
+        secure=False,
+        max_age=60 * 60 * 24 * 7,
     )
     return LoginResponse(user=user_out, token=new_token)
 
