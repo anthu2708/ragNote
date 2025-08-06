@@ -38,6 +38,7 @@ const Sidebar: React.FC = () => {
             {/* Menu items */}
             <div className="flex flex-col flex-1 gap-2">
                 <button
+                    onClick={() => navigate("/dashboard")}
                     className="flex items-center gap-2 px-4 py-2 bg-gradient-button backdrop-blur-50 rounded-full text-white/80 hover:bg-white/10 transition">
                     {<MdDashboard/>}
                     <span>Dashboard</span>
