@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     S3_ENDPOINT: str
     S3_ACCESS_KEY: str
     S3_SECRET_KEY: str
-    FRONTEND_ORIGIN: str = "http://localhost:5173"
+    FRONTEND_ORIGIN: str = "http://localhost"
     CHROMA_PATH: str = "chroma_db"
     UPLOAD_DIR: str = "uploaded_files"
 
