@@ -1,21 +1,35 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MdDashboard } from "react-icons/md";
 import { FiLogOut } from "react-icons/fi";
 import { FaFacebookF, FaTwitter, FaLinkedinIn } from "react-icons/fa";
+import { logout, fetchCurrentUser } from "../utils/auth";
 
 const Footer: React.FC = () => {
   const navigate = useNavigate();
+  const [name, setName] = useState<string>("");
 
-  const handleLogout = () => {
-    // TODO: clear token or call logout logic
-    navigate("/login");
+  useEffect(() => {
+    fetchCurrentUser()
+      .then((res) => setName(res.name || ""))
+      .catch(() => setName(""));
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/login");
+    } catch (err) {
+      console.error("Logout failed", err);
+    }
   };
 
   return (
-    <div className="sm:hidden fixed bottom-0 left-0 w-full bg-black/80 text-white text-sm px-4 py-4 border-t border-white/10 z-50">
-      {/* Hi, An Phùng */}
-      <div className="text-center mb-3 font-semibold">Hi, An Phùng</div>
+    <div className="sm:hidden w-full bg-black/80 text-white text-sm px-4 py-4 border-t border-white/10 z-50">
+      {/* Dynamic Name */}
+      <div className="text-center mb-3 font-semibold">
+        {name ? `Hi, ${name}` : "Hi"}
+      </div>
 
       {/* Navigation */}
       <div className="flex justify-center gap-8 mb-4 text-sm">
@@ -43,7 +57,6 @@ const Footer: React.FC = () => {
         <FaTwitter className="hover:text-gray-300 cursor-pointer" />
         <FaLinkedinIn className="hover:text-gray-300 cursor-pointer" />
       </div>
-
     </div>
   );
 };
