@@ -3,6 +3,8 @@ import {useNavigate, useParams} from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import ChatBubble from "../components/ChatBubble";
 import Footer from "../components/Footer";
+import {getMessagesByChatId, sendMessageToAI, Message as ApiMessage} from "../utils/api";
+
 
 type Message = {
     id: string;
@@ -10,26 +12,6 @@ type Message = {
     content: string;
 };
 
-const mockChats: Record<string, Message[]> = {
-    "1": [
-        {id: "1", role: "user", content: "What is a cover letter?"},
-        {
-            id: "2",
-            role: "assistant",
-            content:
-                "A cover letter is a document sent with your resume to introduce yourself.",
-        },
-    ],
-    "2": [
-        {id: "1", role: "user", content: "What is Docker?"},
-        {
-            id: "2",
-            role: "assistant",
-            content:
-                "Docker is a tool designed to make it easier to create, deploy, and run applications by using containers.",
-        },
-    ],
-};
 
 const ChatScreen: React.FC = () => {
     const {chatId} = useParams<{ chatId: string }>();
@@ -38,38 +20,38 @@ const ChatScreen: React.FC = () => {
     const [input, setInput] = useState("");
 
     useEffect(() => {
-        if (chatId && mockChats[chatId]) {
-            setMessages(mockChats[chatId]);
-        } else {
-            setMessages([
-                {
-                    id: "welcome",
-                    role: "assistant",
-                    content: "Welcome! How can I help you today?",
-                },
-            ]);
-        }
+        const fetchMessages = async () => {
+            if (!chatId) return;
+            try {
+                const data = await getMessagesByChatId(chatId);
+                setMessages(data);
+            } catch (error) {
+                console.error("Failed to fetch messages:", error);
+            }
+        };
+
+        fetchMessages();
     }, [chatId]);
 
-    const handleSend = () => {
-        if (!input.trim()) return;
-        const newUserMsg: Message = {
+
+    const handleSend = async () => {
+        if (!input.trim() || !chatId) return;
+
+        const newUserMsg: ApiMessage = {
             id: crypto.randomUUID(),
             role: "user",
             content: input,
-        };
-        const newAssistantMsg: Message = {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: "I received your message: " + input,
         };
 
         setMessages((prev) => [...prev, newUserMsg]);
         setInput("");
 
-        setTimeout(() => {
-            setMessages((prev) => [...prev, newAssistantMsg]);
-        }, 600);
+        try {
+            const aiResponse = await sendMessageToAI(chatId, input);
+            setMessages((prev) => [...prev, aiResponse]);
+        } catch (error) {
+            console.error("AI response failed:", error);
+        }
     };
 
     return (

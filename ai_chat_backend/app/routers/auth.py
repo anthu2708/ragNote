@@ -10,7 +10,8 @@ from app.schemas.user import UserOut, LoginResponse
 import logging
 from fastapi import Cookie, HTTPException
 from fastapi.responses import JSONResponse
-
+from app.models import User
+from app.utils.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,14 @@ async def login(data: UserLogin,
 
     user_out = UserOut.from_orm(user)
 
-    response.set_cookie("access_token", token, httponly=True)
+    response.set_cookie(
+        "access_token",
+        token,
+        httponly=True,
+        samesite="Lax",  # hoặc "None" nếu dùng HTTPS
+        secure=False,  # dùng True nếu deploy qua HTTPS
+        max_age=60 * 60 * 24,
+    )
 
     return LoginResponse(user=user_out, token=token)
 
@@ -59,7 +67,13 @@ async def refresh_token(
         new_token,
         httponly=True,
         samesite="lax",
-        max_age=60 * 60
+        secure=False,
+        max_age=60 * 60 * 24 * 7,
     )
     return LoginResponse(user=user_out, token=new_token)
+
+@router.get("/me", response_model=UserOut)
+async def get_me(user: User = Depends(get_current_user)):
+    return UserOut.from_orm(user)
+
 

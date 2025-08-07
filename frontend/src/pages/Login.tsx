@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { STROKE_EFFECT } from '../constants/tailwind'; // Same stroke used in Landing
+import { STROKE_EFFECT } from '../constants/tailwind';
+import {login} from "../utils/auth"; // Same stroke used in Landing
 
 const Login = () => {
   const navigate = useNavigate();
@@ -8,9 +9,11 @@ const Login = () => {
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
-    // Replace with actual API call
-    if (email && password) {
+    try {
+      await login(email, password);
       navigate('/dashboard');
+    } catch (err) {
+      console.error('Login failed', err);
     }
   };
 
