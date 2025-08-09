@@ -68,7 +68,7 @@ async def save_file_to_disk(file: UploadFile) -> tuple[str, bytes, str]:
     return file_path, content, file.content_type
 
 def save_file_to_db(session: AsyncSession, chat_id: uuid.UUID, file: UploadFile, file_path: str, content: bytes):
-    encoded_content = base64.b64encode(content).decode("utf-8")
+    # encoded_content = base64.b64encode(content).decode("utf-8")
 
     return FileService.create(
         session=session,
