@@ -1,29 +1,41 @@
 import base64
 import os
 import uuid
-from app.services.rag_service import db
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import UploadFile
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredWordDocumentLoader
-from langchain_community.document_loaders.blob_loaders import Blob
-from langchain_openai import OpenAIEmbeddings
-from langchain_chroma import Chroma
-from app.config import settings
 from langchain_community.document_loaders import (
     TextLoader, PyPDFLoader, UnstructuredWordDocumentLoader
 )
-import tempfile
+from langchain_openai import OpenAIEmbeddings
+from langchain_pinecone import PineconeVectorStore
+from pinecone import Pinecone
+from app.config import settings
 from app.services.file_service import FileService
 
-
+# Ensure upload dir exists
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
-embeddings = OpenAIEmbeddings()
-db = Chroma(
-        persist_directory=settings.CHROMA_PATH,
-        embedding_function=embeddings
+pc = Pinecone(api_key=settings.PINECONE_API_KEY)
+
+if not pc.has_index(settings.PINECONE_INDEX_NAME):
+    pc.create_index_for_model(
+        name=settings.PINECONE_INDEX_NAME,
+        cloud="aws",
+        region="us-east-1",
+        embed={
+            "model": "text-embedding-3-small",
+            "field_map": {"text": "chunk_text"}
+        }
     )
+
+index = pc.Index(settings.PINECONE_INDEX_NAME)
+embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+db = PineconeVectorStore.from_existing_index(
+    index_name=settings.PINECONE_INDEX_NAME,
+    embedding=embedding,
+    text_key="text"
+)
 def select_loader(file_path: str):
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".txt" or ext == ".md":
@@ -64,7 +76,7 @@ def save_file_to_db(session: AsyncSession, chat_id: uuid.UUID, file: UploadFile,
         filename=file.filename,
         filetype=file.content_type,
         url=file_path,
-        data=content
+        data=None
     )
 
 def index_file_content_to_rag(chat_id: uuid.UUID, file_path: str, original_filename: str):
@@ -79,5 +91,6 @@ def index_file_content_to_rag(chat_id: uuid.UUID, file_path: str, original_filen
         chunk.metadata["source"] = original_filename
 
     db.add_documents(chunks)
+
 
 
