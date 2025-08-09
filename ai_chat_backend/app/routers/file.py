@@ -15,7 +15,7 @@ router = APIRouter(prefix="/file", tags=["File Upload"])
 
 @router.post("/upload")
 async def upload_file(
-        chat_id: int = Form(...),
+        chat_id: UUID = Form(...),
         file: UploadFile = File(...),
         session: AsyncSession = Depends(get_db)):
     try:
