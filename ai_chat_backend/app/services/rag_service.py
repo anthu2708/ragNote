@@ -1,28 +1,32 @@
-from langchain_openai import OpenAIEmbeddings, OpenAI
-from langchain_chroma import Chroma
+from uuid import UUID
+from langchain_core.output_parsers import StrOutputParser
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
-from app.config import settings
+from app.services.rag_ingest_service import db
 
-embeddings = OpenAIEmbeddings()
-llm = OpenAI(temperature=0)
 
-db = Chroma(
-    persist_directory=settings.CHROMA_PATH,
-    embedding_function=embeddings
-)
 
-prompt_template = """Answer the question based on the following context:
+prompt_template = """Answer the question using ONLY the context below.
+If the answer isn't in the context, say you don't have enough information.
+
+Context:
 {context}
 
 Question: {query}
 """
 
 prompt = PromptTemplate(input_variables=["context", "query"], template=prompt_template)
-chain = prompt | llm
+llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
+parser = StrOutputParser()
+chain = prompt | llm | parser
 
 
-def get_rag_answer(query_text: str, chat_id: int) -> str:
-    results = db.similarity_search(query_text, k=3, filter={"chat_id": str(chat_id)})
+def get_rag_answer(query_text: str, chat_id: UUID) -> str:
+    results = db.similarity_search(
+        query_text,
+        k=3,
+        filter={"chat_id": {"$eq": str(chat_id)}}
+    )
 
     if not results:
         return "No relevant context found for this chat."
