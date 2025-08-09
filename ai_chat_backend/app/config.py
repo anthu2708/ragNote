@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     FRONTEND_ORIGIN: str = "http://localhost"
     CHROMA_PATH: str = "chroma_db"
     UPLOAD_DIR: str = "uploaded_files"
+    PINECONE_API_KEY: str
+    PINECONE_ENVIRONMENT: str
+    PINECONE_INDEX_NAME: str
 
     class Config:
         env_file = ".env"
