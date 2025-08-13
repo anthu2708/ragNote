@@ -14,7 +14,6 @@ class File(Base):
     url = Column(String, nullable=False)
     created_at = Column(DateTime, default=func.now())
     chat_id = Column(UUID(as_uuid=True), ForeignKey("chats.id", ondelete="CASCADE"))
-    url = Column(String, nullable=False)
     data = Column(LargeBinary)
 
     chat = relationship("Chat", back_populates="files")

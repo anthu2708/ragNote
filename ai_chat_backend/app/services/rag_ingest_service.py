@@ -1,29 +1,19 @@
-import base64
 import os
 import uuid
-from app.services.rag_service import db
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import UploadFile
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredWordDocumentLoader
-from langchain_community.document_loaders.blob_loaders import Blob
-from langchain_openai import OpenAIEmbeddings
-from langchain_chroma import Chroma
-from app.config import settings
 from langchain_community.document_loaders import (
     TextLoader, PyPDFLoader, UnstructuredWordDocumentLoader
 )
-import tempfile
+from app.config import settings
 from app.services.file_service import FileService
-
+from app.services.rag_store import get_vectorstore
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
-embeddings = OpenAIEmbeddings()
-db = Chroma(
-        persist_directory=settings.CHROMA_PATH,
-        embedding_function=embeddings
-    )
+
 def select_loader(file_path: str):
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".txt" or ext == ".md":
@@ -38,36 +28,27 @@ def select_loader(file_path: str):
 
 async def process_uploaded_file(
     file: UploadFile,
-    chat_id: uuid.UUID,
+    chat_id: UUID,
     session: AsyncSession,
     file_path: str,
     content: bytes,
 ):
-    db_file = save_file_to_db(session, chat_id, file, file_path, content)
+    db_file = await save_file_to_db(session, chat_id, file, file_path, content)
     index_file_content_to_rag(chat_id, file_path, file.filename)
     return db_file
 
-async def save_file_to_disk(file: UploadFile) -> tuple[str, bytes, str]:
-    content = await file.read()
-    unique_name = f"{uuid.uuid4()}_{file.filename}"
-    file_path = os.path.join(settings.UPLOAD_DIR, unique_name)
-    with open(file_path, "wb") as f:
-        f.write(content)
-    return file_path, content, file.content_type
 
-def save_file_to_db(session: AsyncSession, chat_id: uuid.UUID, file: UploadFile, file_path: str, content: bytes):
-    encoded_content = base64.b64encode(content).decode("utf-8")
-
-    return FileService.create(
+async def save_file_to_db(session: AsyncSession, chat_id: UUID, file: UploadFile, file_path: str, content: bytes):
+    return await FileService.create(
         session=session,
         chat_id=chat_id,
         filename=file.filename,
         filetype=file.content_type,
         url=file_path,
-        data=content
+        data=None
     )
 
-def index_file_content_to_rag(chat_id: uuid.UUID, file_path: str, original_filename: str):
+def index_file_content_to_rag(chat_id: UUID, file_path: str, original_filename: str):
     loader = select_loader(file_path)
     documents = loader.load()
 
@@ -78,6 +59,15 @@ def index_file_content_to_rag(chat_id: uuid.UUID, file_path: str, original_filen
         chunk.metadata["chat_id"] = str(chat_id)
         chunk.metadata["source"] = original_filename
 
-    db.add_documents(chunks)
+    vs = get_vectorstore()
+    vs.add_documents(chunks)
 
+
+async def save_file_to_disk(file: UploadFile) -> tuple[str, bytes, str]:
+    content = await file.read()
+    unique_name = f"{uuid.uuid4()}_{file.filename}"
+    file_path = os.path.join(settings.UPLOAD_DIR, unique_name)
+    with open(file_path, "wb") as f:
+        f.write(content)
+    return file_path, content, file.content_type
 
