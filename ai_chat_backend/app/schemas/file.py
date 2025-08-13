@@ -2,10 +2,6 @@ from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
 
-class FileUpload(BaseModel):
-    filename: str
-    chat_id: UUID
-
 class FileResponse(BaseModel):
     id: UUID
     filename: str

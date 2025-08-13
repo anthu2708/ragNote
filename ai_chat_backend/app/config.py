@@ -2,8 +2,7 @@ from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 import os
 
-load_dotenv()  # load .env vào environment variables
-
+load_dotenv()
 class Settings(BaseSettings):
     DATABASE_URL: str
     SECRET_KEY: str
@@ -16,6 +15,9 @@ class Settings(BaseSettings):
     FRONTEND_ORIGIN: str = "http://localhost"
     CHROMA_PATH: str = "chroma_db"
     UPLOAD_DIR: str = "uploaded_files"
+    PINECONE_API_KEY: str
+    PINECONE_ENVIRONMENT: str
+    PINECONE_INDEX_NAME: str
 
     class Config:
         env_file = ".env"

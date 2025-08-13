@@ -1,18 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID
-
 from app.utils.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.models.chat import Chat
 from app.models.message import Message, RoleType
-from app.schemas.chat import ChatAskRequest, ChatAskResponse
+from app.schemas.chat import ChatAskRequest
+from app.schemas.message import MessageOut
 from app.services.rag_service import get_rag_answer
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
 
-@router.post("/ask", response_model=ChatAskResponse)
+@router.post("/ask", response_model=MessageOut)
 async def ask_chat(
     body: ChatAskRequest,
     db: AsyncSession = Depends(get_db),
@@ -39,5 +38,10 @@ async def ask_chat(
     db.add(assistant_msg)
 
     await db.commit()
+    await db.refresh(assistant_msg)
 
-    return ChatAskResponse(ans=answer)
+    return MessageOut(
+        content=assistant_msg.content,
+        id=assistant_msg.id,
+        created_at=assistant_msg.created_at
+    )
