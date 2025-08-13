@@ -4,14 +4,12 @@ from app.schemas.user import UserCreate, UserLogin, UserOut
 from app.services.auth_service import AuthService
 from app.utils.dependencies import get_db
 from app.schemas.user import LoginResponse
-from uuid import uuid4
-from datetime import datetime
 from app.schemas.user import UserOut, LoginResponse
 import logging
 from fastapi import Cookie, HTTPException
-from fastapi.responses import JSONResponse
 from app.models import User
 from app.utils.dependencies import get_current_user
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +32,13 @@ async def login(data: UserLogin,
         "access_token",
         token,
         httponly=True,
-        samesite="Lax",  # hoặc "None" nếu dùng HTTPS
-        secure=False,  # dùng True nếu deploy qua HTTPS
+        samesite="Lax",
+        secure=False,
         max_age=60 * 60 * 24,
     )
 
     return LoginResponse(user=user_out, token=token)
 
-from fastapi.responses import JSONResponse
 
 @router.post("/logout")
 async def logout(response: Response):

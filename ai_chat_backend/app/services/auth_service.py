@@ -8,6 +8,7 @@ from app.schemas.user import UserCreate, UserLogin
 from app.utils.security import create_access_token, verify_token
 from passlib.context import CryptContext
 import logging
+
 logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -42,7 +43,6 @@ class AuthService:
 
         token = create_access_token({"sub": str(user.id)})
         return user, token
-
 
     async def refresh_token(self, old_token: str):
 
