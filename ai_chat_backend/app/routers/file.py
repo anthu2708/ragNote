@@ -1,23 +1,55 @@
+import re
 from typing import List
-from uuid import UUID
+from uuid import UUID, uuid4
 from datetime import datetime, timezone
+import boto3
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends
+from fastapi import APIRouter, UploadFile, HTTPException, Form, Depends
 from app.services.rag_ingest_service import process_uploaded_file
 from app.utils.dependencies import get_db
 from app.schemas.file import FileResponse
 from app.services.file_service import FileService
 from app.services.rag_ingest_service import save_file_to_disk
 from app.models import Chat
+from app.config import settings
+from botocore.config import Config
+from app.schemas.file import PresignByKeyReq, ConfirmReq
+from app.utils.dependencies import get_current_user
+from app.models.file import File, FileStatus
+from fastapi import File as FastAPIFile
 
 router = APIRouter(prefix="/file", tags=["File Upload"])
 
+BUCKET = settings.S3_BUCKET
+MAX_MB = settings.MAX_FILE_SIZE_MB
+SSE_MODE = settings.SSE_MODE
+MAX_BYTES = MAX_MB * 1024 * 1024
+BUFFER = 1024 * 1024
 
+def s3_client():
+    return boto3.client(
+        "s3",
+        region_name=settings.AWS_REGION,
+        endpoint_url=settings.S3_ENDPOINT or None,
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        config=Config(signature_version="s3v4")
+    )
+
+def _validate(user_id: str, key: str, mime: str, size: int):
+    if not key.startswith(f"uploads/{user_id}/"):
+        raise HTTPException(403, "Key prefix not allowed")
+    if not key.lower().endswith(".pdf"):
+        raise HTTPException(400, "Only .pdf for now")
+    if mime != "application/pdf":
+        raise HTTPException(400, "Unsupported MIME")
+    if size > MAX_MB * 1024 * 1024:
+        raise HTTPException(400, f"File too large (>{MAX_MB}MB)")
 
 @router.post("/upload")
 async def upload_file(
         chat_id: UUID = Form(...),
-        files: List[UploadFile] = File(...),
+        files: List[UploadFile] = FastAPIFile(...),
         session: AsyncSession = Depends(get_db)):
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
@@ -52,3 +84,104 @@ async def delete_file(file_id: UUID, session: AsyncSession = Depends(get_db)):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.post("/presign-by-key")
+async def presign_by_key(
+        req: PresignByKeyReq,
+        db: AsyncSession = Depends(get_db),
+        user=Depends(get_current_user)
+):
+    # _validate(str(user.id), req.key, req.contentType, req.size)
+    key = f"uploads/{user.id}/{uuid4()}.pdf"
+    if req.contentType != "application/pdf":
+        raise HTTPException(400, "Only PDF for now")
+    if req.size > MAX_BYTES:
+        raise HTTPException(400, f"File too large (>{MAX_MB}MB)")
+
+    f = File(
+        id=uuid4(),
+        filename=req.filename or key.split("/")[-1],
+        filetype=req.contentType,
+        url=f"s3://{BUCKET}/{key}",
+        chat_id=None,
+        key=key,
+        status=FileStatus.requested,
+        size=None,
+        etag=None,
+    )
+    db.add(f)
+    await db.flush()
+    await db.commit()
+    await db.refresh(f)
+
+    print("PRESIGN SAVED:", f.id, f.key)
+
+    if not f.id:
+        import logging
+        logging.getLogger(__name__).error("presign created File with empty id for key=%s", key)
+        raise HTTPException(500, "failed to create file record")
+
+    s3 = s3_client()
+    fields = {
+        "Content-Type": req.contentType,
+        "x-amz-server-side-encryption": SSE_MODE,
+        "success_action_status": "201",
+        "key": key,
+    }
+    cond = [
+        {"Content-Type": req.contentType},
+        {"x-amz-server-side-encryption": SSE_MODE},
+        {"success_action_status": "201"},
+        {"key": key},
+        ["content-length-range", 1, MAX_BYTES + BUFFER],
+    ]
+    presigned = s3.generate_presigned_post(
+        BUCKET, key, Fields=fields, Conditions=cond, ExpiresIn=900
+    )
+    return {
+        "url": presigned["url"],
+        "fields": presigned["fields"],
+        "file_id": str(f.id),
+        "key": key}
+
+ETAG_RE = re.compile(r'^"?([0-9a-fA-F]{32}(-\d+)?)"?$')
+
+@router.post("/confirm")
+async def confirm(
+        body: ConfirmReq,
+        db: AsyncSession = Depends(get_db),
+        user=Depends(get_current_user)):
+    try:
+        file_uuid = UUID(body.file_id)
+    except Exception:
+        raise HTTPException(400, "Invalid file_id")
+
+    m = ETAG_RE.match(body.etag.strip())
+    if not m:
+        raise HTTPException(400, "Invalid ETag")
+    clean_etag = m.group(1)
+
+    if not (body.s3_url.startswith("s3://") or body.s3_url.startswith("https://")):
+        raise HTTPException(400, "Invalid s3_url")
+
+    try:
+        size_int = int(body.size)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid size")
+    if size_int <= 0:
+        raise HTTPException(status_code=400, detail="Invalid size")
+
+    f = await db.get(File, file_uuid)
+    if not f:
+        raise HTTPException(404, "File not found")
+
+    f.etag = clean_etag
+    f.size = size_int
+    f.filetype = body.mime
+    f.url = body.s3_url
+    f.status = FileStatus.uploaded
+
+    await db.commit()
+    await db.refresh(f)
+
+    return {"id": str(f.id), "status": f.status}

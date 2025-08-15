@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from app.models.file import File
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.config import settings
 
 
 class FileService:
@@ -20,6 +21,9 @@ class FileService:
         db_file = result.scalar_one_or_none()
         if not db_file:
             raise ValueError("File not found")
+
+        if db_file.url and db_file.url.startswith("s3://"):
+            pass
 
         if db_file.url and os.path.exists(db_file.url):
             os.remove(db_file.url)
