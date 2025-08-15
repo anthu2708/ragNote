@@ -18,9 +18,18 @@ class Settings(BaseSettings):
     PINECONE_API_KEY: str
     PINECONE_ENVIRONMENT: str
     PINECONE_INDEX_NAME: str
+    S3_BUCKET: str
+    MAX_FILE_SIZE_MB: int = 100
+    SSE_MODE: str
+    AWS_REGION: str
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
+    S3_ENDPOINT: str
+
 
     class Config:
-        env_file = ".env"
+        env_file = ".env",
+        extra = "ignore"
 
 settings = Settings()
 
