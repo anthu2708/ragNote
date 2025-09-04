@@ -202,8 +202,9 @@ const ChatScreen: React.FC = () => {
                         className="w-full h-full mx-auto rounded-3xl overflow-hidden bg-black/40 backdrop-blur ring-1 ring-white/10 shadow-xl flex flex-col">
                         <Header chatId={chatId}/>
                         <div ref={listRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4
-                        scrollbar-thin scrollbar-track-transparent
-                        scrollbar-thumb-white/20 hover:scrollbar-thumb-white/40">
+                        scrollbar-thin scrollbar-thumb-neutral-700/60
+                        scrollbar-track-transparent hover:scrollbar-thumb-neutral-700
+                        dark:scrollbar-thumb-neutral-600">
                             {isFetching ? (
                                 <div className="flex justify-center items-center h-full text-white/60">
                                     Loading chat...
