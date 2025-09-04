@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel, Field, constr, conint
@@ -25,3 +26,10 @@ class ConfirmReq(BaseModel):
     s3_url: str
     size: int
     mime: Literal["application/pdf"]
+
+class AttachReq(BaseModel):
+    chat_id: UUID
+    file_ids: list[UUID]
+
+class DiscardReq(BaseModel):
+    file_ids: list[UUID]

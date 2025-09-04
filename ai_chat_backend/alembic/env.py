@@ -37,6 +37,8 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 def do_run_migrations(connection: Connection) -> None:
+    connection = connection.execution_options(stream_results=False)
+
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
@@ -52,6 +54,8 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
+        connection = connection.execution_options(stream_results=False)
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

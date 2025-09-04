@@ -3,12 +3,18 @@ import {useNavigate} from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Footer from "../components/Footer";
 import {ArrowUpTrayIcon} from "@heroicons/react/24/outline";
-import {presignByKey, uploadToS3ViaPresignedPost, confirmS3Upload, createChat} from "../utils/api";
+import {
+    presignByKey,
+    uploadToS3ViaPresignedPost,
+    confirmS3Upload,
+    createChat,
+    attachFiles, discardFiles, ingestFileNow
+} from "../utils/api";
 import {fetchCurrentUser} from "../utils/auth";
 
 const ACCEPTED = [".pdf"];
 
-// ==== DEBUG (set false để tắt log) ====
+// ==== DEBUG ====
 const DEBUG_UPLOAD = true;
 const dlog = (...args: any[]) => DEBUG_UPLOAD && console.log("[AddProject]", ...args);
 
@@ -46,7 +52,7 @@ const AddProjectScreen: React.FC = () => {
     const [files, setFiles] = useState<File[]>([]);
     const [isDragging, setDragging] = useState(false);
 
-    // upload state — KHÔNG bắt đầu cho tới khi nhấn Create
+    // upload state
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [progress, setProgress] = useState<Record<string, number>>({});
@@ -63,7 +69,7 @@ const AddProjectScreen: React.FC = () => {
         return null;
     };
 
-    // handle chọn file (CHỈ lưu vào state; KHÔNG upload)
+    // handle file: save to state
     const handleFiles = (incoming: File[]) => {
         dlog("handleFiles incoming:", incoming.map(f => ({name: f.name, size: f.size, type: f.type})));
         const errors: string[] = [];
@@ -90,7 +96,7 @@ const AddProjectScreen: React.FC = () => {
         });
 
         if (errors.length) setError(errors.join("\n"));
-        // reset trạng thái upload cũ nếu chọn lại file
+        // reset progress if choose other file
         setProgress({});
         setStatus({});
     };
@@ -116,46 +122,28 @@ const AddProjectScreen: React.FC = () => {
         setDragging(false);
     };
 
-    // upload một file — chỉ được gọi trong handleCreate
-    const uploadOne = async (userId: string, f: File) => {
+    const uploadOne = async (f: File): Promise<string> => {
         try {
-            dlog("start upload:", f.name, f.size, f.type);
-            // bắt đầu mới set status/progress (trước đó không hiển thị)
             setStatus(s => ({...s, [f.name]: "uploading"}));
             setProgress(p => ({...p, [f.name]: 1})); // kick UI
 
+            // 1. presign
             const {url, fields, file_id, key} = await presignByKey({
+                filename: f.name,
                 contentType: "application/pdf",
                 size: f.size,
-                filename: f.name,
             });
-            dlog("presign ok:", {url, file_id});
 
+            // 2. upload to S3 (presigned POST) + update progress %
             const {etag, location} = await uploadToS3ViaPresignedPost(
                 url,
                 fields,
                 f,
-                (pct) => setProgress(p => ({...p, [f.name]: pct}))
+                (pct: number) => setProgress(p => ({...p, [f.name]: pct}))
             );
-            dlog("s3 done:", {etag, location});
 
-            const u = new URL(url);
-            const hostParts = u.host.split(".");
-            let bucket = hostParts[0];
-            if (!bucket || bucket === "s3") {
-                const seg = u.pathname.split("/").filter(Boolean);
-                if (seg.length > 0) bucket = seg[0];
-            }
-            const s3_url = location || (bucket ? `s3://${bucket}/${key}` : `s3://${key}`);
-
-            console.log("[CONFIRM payload]", {
-                file_id,
-                etag,
-                s3_url: location || `s3://${new URL(url).host.split(".")[0]}/${key}`,
-                size: f.size,
-                mime: "application/pdf",
-            });
-
+            // 3. confirm w backend
+            const s3_url = location || deriveS3Url(url, key);
             await confirmS3Upload({
                 file_id,
                 etag,
@@ -164,41 +152,79 @@ const AddProjectScreen: React.FC = () => {
                 mime: "application/pdf",
             });
 
+            console.log("[Ingest] Start ingesting...")
+            try {
+                await ingestFileNow(file_id);
+            } catch (err) {
+                throw err
+            }
+            console.log("[Ingest] Finish ingesting...")
+
+            // 4. done UI
             setProgress(p => ({...p, [f.name]: 100}));
             setStatus(s => ({...s, [f.name]: "done"}));
-            dlog("confirm ok for", f.name);
+
+            return file_id;
         } catch (e: any) {
             console.error("[AddProject] upload error", f.name, e);
             setStatus(s => ({...s, [f.name]: "error"}));
-            setError(e?.message || `Upload failed for ${f.name}`);
+            setError(e?.response?.data?.detail || e?.message || `Upload failed for ${f.name}`);
+            throw e;
         }
     };
 
+
+    function deriveS3Url(presignUrl: string, key: string) {
+        const u = new URL(presignUrl);
+        const hostParts = u.host.split(".");
+        let bucket = hostParts[0];
+        if (!bucket || bucket === "s3") {
+            const seg = u.pathname.split("/").filter(Boolean);
+            if (seg.length > 0) bucket = seg[0];
+        }
+        return bucket ? `s3://${bucket}/${key}` : `s3://${key}`;
+    }
+
     const handleCreate = async () => {
-        dlog("Create clicked. files=", files.map(f => f.name));
-        if (!files.length) return;
         setSubmitting(true);
         setError(null);
+        const uploaded: string[] = []; // file_id sau confirm OK
+
         try {
-            const userId = await getUserId();
+            // 1) Upload (presign -> S3 -> confirm)
             for (const f of files) {
-                // chỉ upload những file chưa done
-                if (status[f.name] !== "done") {
-                    await uploadOne(userId, f);
-                }
+                const fileId = await uploadOne(f);
+                uploaded.push(fileId);
             }
 
-            navigate("/dashboard");
+            // 2) Create a new chat with uploaded file
+            const chat = await createChat(name.trim() || "Untitled");
+
+            // 3) Attach file list to chat
+            console.log("[Attach] Chat ID: ", chat.id, "Files_ID:", uploaded)
+            if (uploaded.length) {
+                await attachFiles({chat_id: chat.id, file_ids: uploaded});
+            }
+
+            // 4) Done
+            navigate(`/chat/${chat.id}`);
         } catch (e: any) {
             console.error(e);
-            setError(e?.message || "Failed to upload.");
+            setError(e?.response?.data?.detail || e.message || "Failed to create project");
+
+            // 5) Discard file if chat is not created
+            if (uploaded.length) {
+                try {
+                    await discardFiles({file_ids: uploaded});
+                } catch {
+                }
+            }
         } finally {
             setSubmitting(false);
         }
     };
 
     const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-    // Bạn muốn “đến khi nhấn Create mới chạy” → cho phép bấm khi có file
     const canSubmit = files.length > 0 && !submitting;
 
     return (
