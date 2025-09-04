@@ -4,14 +4,14 @@ import axios from './axios'
 export interface Project {
     id: string
     title: string
-    created: string
+    updated_at: string
 }
 
 export interface Message {
     id: string;
     role: 'user' | 'assistant';
     content: string;
-    created_at?: string;
+    created_at: string;
 }
 
 export interface UploadedFile {
@@ -40,6 +40,13 @@ export type PresignResp = {
 
 export type ConfirmResp = { ok: boolean };
 
+export interface MessageOut {
+    id: string;
+    content: string;
+    created_at: string;
+}
+
+
 /** ========= Chats ========= */
 
 export const getAllChats = async (): Promise<Project[]> => {
@@ -47,21 +54,33 @@ export const getAllChats = async (): Promise<Project[]> => {
     return res.data
 }
 
-export const createChat = async (title: string, files: File[]): Promise<ChatResponse> => {
-    if (!title?.trim() || !files?.length) {
-        throw new Error("Title and at least one file are required.");
+export const getChatTitle = async (chatId: string): Promise<string> => {
+    const res = await axios.get<{ title: string }>(`/chat/title/${chatId}`, {
+        withCredentials: true
+    });
+    return res.data.title;
+};
+
+export const createChat = async (title: string): Promise<ChatResponse> => {
+    if (!title?.trim()) {
+        throw new Error("Title are required.");
     }
 
     const formData = new FormData();
     formData.append("title", title.trim());
-    for (const f of files) formData.append("files", f);
 
-    const res = await axios.post<ChatResponse>("/chat/", formData, {
+    const res = await axios.post<ChatResponse>("/chat/minimal", formData, {
         withCredentials: true,
         headers: {"Content-Type": "multipart/form-data"},
     });
     return res.data;
 };
+
+export const deleteChat = async (chatId: string): Promise<void> => {
+    if (!chatId?.trim()) throw new Error("Invalid chatId");
+    await axios.delete(`/chat/${chatId}`, {withCredentials: true});
+};
+
 
 /** ========= Messages ========= */
 
@@ -80,11 +99,7 @@ export const sendMessageToAI = async (
     const trimmedMessage = message?.trim();
     if (!trimmedChatId || !trimmedMessage) throw new Error("Invalid chatId or message");
 
-    const res = await axios.post<{
-        ans: string;
-        id: string;
-        created_at: string;
-    }>(
+    const res = await axios.post<MessageOut>(
         "/ai/ask",
         {chat_id: trimmedChatId, question: trimmedMessage},
         {withCredentials: true}
@@ -93,13 +108,13 @@ export const sendMessageToAI = async (
     return {
         id: res.data.id,
         role: "assistant",
-        content: res.data.ans,
+        content: res.data.content,
         created_at: res.data.created_at,
     };
 };
+;
 
 /** ========= File uploads (direct -> backend) ========= */
-
 
 export const uploadFiles = async (
     chatId: string,
@@ -200,4 +215,25 @@ export function uploadToS3ViaPresignedPost(
         xhr.open("POST", url);
         xhr.send(fd);
     });
+}
+
+
+export async function attachFiles(payload: { chat_id: string; file_ids: string[] }) {
+    const res = await axios.post("/file/attach", payload, {withCredentials: true});
+    return res.data;
+}
+
+export async function discardFiles(payload: { file_ids: string[] }) {
+    const res = await axios.post("/file/discard", payload, {withCredentials: true});
+    return res.data;
+}
+
+export async function ingestFileNow(file_id: string) {
+    const url = `/file/ingest/${file_id}`;
+    const res = await axios.post(
+        url,
+        null,
+        {withCredentials: true}
+    );
+    return res.data;
 }

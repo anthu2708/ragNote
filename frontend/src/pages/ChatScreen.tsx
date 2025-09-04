@@ -5,7 +5,7 @@ import Sidebar from "../components/Sidebar";
 import Footer from "../components/Footer";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import {getMessagesByChatId, sendMessageToAI, Message as ApiMessage} from "../utils/api";
+import {getMessagesByChatId, sendMessageToAI, Message as ApiMessage, getChatTitle} from "../utils/api";
 
 type Message = {
     id: string;
@@ -14,13 +14,41 @@ type Message = {
     created_at: string;
 };
 
-const Header: React.FC = () => (
-    <div className="sticky top-0 z-10 px-4 md:px-6 py-4 backdrop-blur-sm bg-black/30 border-b border-white/10">
-        <div className="flex items-center justify-between">
-            <h1 className="text-xl md:text-2xl font-semibold text-white tracking-tight">Chat with AI</h1>
+const Header: React.FC<{ chatId?: string }> = ({chatId}) => {
+    const [title, setTitle] = useState<string | null>(null);
+    const [error, setError] = useState(false);
+
+    useEffect(() => {
+        if (!chatId) return;
+        getChatTitle(chatId)
+            .then((t) => setTitle(t))
+            .catch((err) => {
+                console.error("Failed to fetch chat title:", err);
+                setError(true);
+                setTitle("Chat with AI");
+            });
+    }, [chatId]);
+
+    if (title === null && !error) {
+        return (
+            <div className="sticky top-0 z-10 px-4 md:px-6 py-4 backdrop-blur-sm bg-black/30 border-b border-white/10">
+                <div className="flex items-center justify-between">
+                    <div className="h-6 w-40 bg-white/20 rounded animate-pulse"/>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="sticky top-0 z-10 px-4 md:px-6 py-4 backdrop-blur-sm bg-black/30 border-b border-white/10">
+            <div className="flex items-center justify-between">
+                <h1 className="text-xl md:text-2xl font-semibold text-white tracking-tight">
+                    {title}
+                </h1>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const Avatar: React.FC<{ role: Message["role"] }> = ({role}) => (
     <div
@@ -133,24 +161,26 @@ const ChatScreen: React.FC = () => {
             created_at: new Date().toISOString(),
         };
 
+
         setMessages((prev) => [...prev, userMsg]);
         setInput("");
         setIsLoading(true);
 
         try {
             const aiMsg = await sendMessageToAI(chatId, text);
-            setMessages((prev) => [...prev, aiMsg]);
+            console.log(aiMsg);
+            console.log(aiMsg.id);
+            console.log(aiMsg.created_at);
+            console.log(aiMsg.content);
+            const resMsg: ApiMessage = {
+                id: aiMsg.id,
+                role: "assistant",
+                content: aiMsg.content,
+                created_at: aiMsg.created_at,
+            };
+            setMessages((prev) => [...prev, resMsg]);
         } catch (error) {
             console.error(error);
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: crypto.randomUUID(),
-                    role: "assistant",
-                    content: "⚠️ Something went wrong. Please try again.",
-                    created_at: new Date().toISOString(),
-                },
-            ]);
         } finally {
             setIsLoading(false);
         }
@@ -170,8 +200,10 @@ const ChatScreen: React.FC = () => {
                 <div className="h-full flex items-center justify-center px-8 md:px-8 py-8">
                     <div
                         className="w-full h-full mx-auto rounded-3xl overflow-hidden bg-black/40 backdrop-blur ring-1 ring-white/10 shadow-xl flex flex-col">
-                        <Header/>
-                        <div ref={listRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+                        <Header chatId={chatId}/>
+                        <div ref={listRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4
+                        scrollbar-thin scrollbar-track-transparent
+                        scrollbar-thumb-white/20 hover:scrollbar-thumb-white/40">
                             {isFetching ? (
                                 <div className="flex justify-center items-center h-full text-white/60">
                                     Loading chat...
@@ -195,7 +227,11 @@ const ChatScreen: React.FC = () => {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={onKeyDown}
                     placeholder="Type your message… (Shift+Enter for new line)"
-                    className="flex-1 resize-none rounded-2xl bg-white/10 text-white placeholder-white/60 ring-1 ring-white/10 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    className="flex-1 resize-none rounded-2xl bg-white/10 text-white
+                    placeholder-white/60 ring-1 ring-white/10 px-4 py-3
+                    focus:outline-none focus:ring-2 focus:ring-violet-400
+                    scrollbar-thin scrollbar-track-transparent
+                    scrollbar-thumb-white/20 hover:scrollbar-thumb-white/40"
                 />
                                 <button
                                     onClick={send}

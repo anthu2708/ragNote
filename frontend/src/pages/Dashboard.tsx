@@ -4,8 +4,7 @@ import Sidebar from "../components/Sidebar";
 import ProjectCard from "../components/ProjectCard";
 import Footer from "../components/Footer";
 import { useNavigate } from "react-router-dom";
-import { getAllChats, Project } from "../utils/api";
-import { formatRelativeTime } from "../utils/utils";
+import {deleteChat, getAllChats, Project} from "../utils/api";
 import { FiSearch } from "react-icons/fi";
 
 const Dashboard: React.FC = () => {
@@ -16,6 +15,16 @@ const Dashboard: React.FC = () => {
   const [showSearch, setShowSearch] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    try {
+      await deleteChat(id);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      console.error("Failed to delete chat", err);
+      alert("Failed to delete project.");
+    }
+  };
   // load projects
   useEffect(() => {
     let mounted = true;
@@ -40,7 +49,7 @@ const Dashboard: React.FC = () => {
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     const sorted = [...projects].sort(
-      (a, b) => new Date(b.created).getTime() - new Date(a.created).getTime()
+      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     );
     if (!q) return sorted;
     return sorted.filter((p) => p.title.toLowerCase().includes(q));
@@ -52,6 +61,19 @@ const Dashboard: React.FC = () => {
       setQuery("");
     }
   };
+
+  const formatRelativeTime = (dateString: string): string => {
+    const now = new Date();
+    const created = new Date(dateString);
+    const delta = (now.getTime() - created.getTime()) / 1000;
+    const m = 60, h = 3600, d = 86400, mo = 2592000, y = 31536000;
+    if (delta >= y) return `${Math.floor(delta / y)} year${Math.floor(delta / y) > 1 ? "s" : ""} ago`;
+    if (delta >= mo) return `${Math.floor(delta / mo)} month${Math.floor(delta / mo) > 1 ? "s" : ""} ago`;
+    if (delta >= d) return `${Math.floor(delta / d)} day${Math.floor(delta / d) > 1 ? "s" : ""} ago`;
+    if (delta >= h) return `${Math.floor(delta / h)} hour${Math.floor(delta / h) > 1 ? "s" : ""} ago`;
+    if (delta >= m) return `${Math.floor(delta / m)} minute${Math.floor(delta / m) > 1 ? "s" : ""} ago`;
+    return "just now";
+  }
 
   return (
     <div className="flex min-h-screen bg-cover bg-center bg-[url('/src/assets/bg.png')]">
@@ -80,7 +102,7 @@ const Dashboard: React.FC = () => {
                   </button>
                 )}
 
-                {/* thanh search: khi đóng => width = 0 để icon sát mép phải */}
+                {/* Search bar  */}
                 <div
                   className={`relative overflow-hidden transition-[width,opacity] duration-200 ease-out ml-2
                   ${showSearch ? "w-56 md:w-72 opacity-100" : "w-0 opacity-0 pointer-events-none"}`}
@@ -93,7 +115,7 @@ const Dashboard: React.FC = () => {
                     placeholder="Search projects…"
                     className="w-full rounded-xl bg-white/10 text-white placeholder-white/60 ring-1 ring-white/10 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400"
                   />
-                  {/* nút Esc nhỏ bên phải */}
+                  {/* Esc button */}
                   {showSearch && (
                     <button
                       aria-label="Close search"
@@ -139,7 +161,8 @@ const Dashboard: React.FC = () => {
                       key={p.id}
                       id={p.id}
                       title={p.title}
-                      created={formatRelativeTime(p.created)}
+                      created={formatRelativeTime(p.updated_at)}
+                      onDelete={handleDelete}
                     />
                   ))}
                 </div>

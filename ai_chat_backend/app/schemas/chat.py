@@ -11,3 +11,4 @@ class ChatSummary(BaseModel):  # dùng thay ChatListItem nếu muốn
     id: UUID
     title: str
     updated_at: datetime
+
