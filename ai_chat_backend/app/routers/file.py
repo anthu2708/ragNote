@@ -1,10 +1,11 @@
+import re
+import uuid
 from typing import List
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 import boto3
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends
-from app.services.rag_ingest_service import process_uploaded_file
 from app.utils.dependencies import get_db
 from app.schemas.file import FileResponse, AttachReq, DiscardReq
 from app.services.file_service import FileService
