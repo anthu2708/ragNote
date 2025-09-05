@@ -1,4 +1,4 @@
-# DocuQuery
+# QuickNote
 Upload files once, ask questions anytime.  
 A simple Retrieval-Augmented Generation (RAG) app that lets you store documents and query their content with intelligent answers.
 
