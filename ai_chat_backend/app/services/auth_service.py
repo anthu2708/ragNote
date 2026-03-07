@@ -5,13 +5,10 @@ from fastapi import HTTPException, status
 from uuid import UUID
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin
-from app.utils.security import create_access_token, verify_token
-from passlib.context import CryptContext
+from app.utils.security import create_access_token, verify_token, hash_password, verify_password
 import logging
 
 logger = logging.getLogger(__name__)
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthService:
@@ -29,7 +26,7 @@ class AuthService:
         user = User(
             email=data.email,
             name=data.name,
-            password=pwd_context.hash(data.password),
+            password=hash_password(data.password),
         )
         self.db.add(user)
         await self.db.commit()
@@ -38,7 +35,7 @@ class AuthService:
 
     async def login(self, data: UserLogin):
         user = await self._get_user_by_email(data.email)
-        if not user or not pwd_context.verify(data.password, user.password):
+        if not user or not verify_password(data.password, user.password):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
         token = create_access_token({"sub": str(user.id)})
