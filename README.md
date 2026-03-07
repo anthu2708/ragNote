@@ -90,6 +90,7 @@ cd ragNote
 Copy environment variables and fill in your own credentials:
 
 ```bash
+cd ai_chat_backend
 cp .env.example .env
 ```
 
@@ -112,6 +113,13 @@ Run database migrations:
 
 ```bash
 docker compose exec backend alembic upgrade head
+```
+
+If you run Alembic locally (outside Docker), run from backend folder so config paths resolve correctly:
+
+```bash
+cd ai_chat_backend
+alembic upgrade head
 ```
 
 ---
