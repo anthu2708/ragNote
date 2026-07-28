@@ -13,17 +13,16 @@ from app.config import settings
 router = APIRouter(prefix="/ai", tags=["AI"])
 
 
-def _check_and_increment_rate_limit(user: User) -> None:
+def _check_rate_limit(user: User) -> None:
     today = date.today()
     if user.last_ask_date != today:
-        user.daily_ask_count = 0
+        user.daily_token_count = 0
         user.last_ask_date = today
-    if user.daily_ask_count >= settings.DAILY_ASK_LIMIT:
+    if user.daily_token_count >= settings.DAILY_TOKEN_LIMIT:
         raise HTTPException(
             status_code=429,
-            detail=f"Daily limit of {settings.DAILY_ASK_LIMIT} questions reached. Try again tomorrow."
+            detail=f"Daily token limit of {settings.DAILY_TOKEN_LIMIT} reached. Try again tomorrow."
         )
-    user.daily_ask_count += 1
 
 
 @router.post("/ask", response_model=MessageOut)
@@ -36,7 +35,7 @@ async def ask_chat(
     if not chat or chat.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    _check_and_increment_rate_limit(current_user)
+    _check_rate_limit(current_user)
 
     user_msg = Message(
         role=RoleType.USER,
@@ -45,7 +44,8 @@ async def ask_chat(
     )
     db.add(user_msg)
 
-    answer = get_rag_answer(body.question, chat_id=str(body.chat_id))
+    answer, tokens_used = get_rag_answer(body.question, chat_id=str(body.chat_id))
+    current_user.daily_token_count += tokens_used
 
     assistant_msg = Message(
         role=RoleType.ASSISTANT,

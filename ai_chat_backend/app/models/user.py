@@ -13,7 +13,7 @@ class User(Base):
     name = Column(String, nullable=True)
     avatar = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
-    daily_ask_count = Column(Integer, nullable=False, default=0)
+    daily_token_count = Column(Integer, nullable=False, default=0)
     last_ask_date = Column(Date, nullable=True)
 
     chats = relationship("Chat", back_populates="user", cascade="all, delete-orphan")
