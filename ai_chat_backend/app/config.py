@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     AWS_ACCESS_KEY_ID: str
     AWS_SECRET_ACCESS_KEY: str
     S3_ENDPOINT: str
+    DAILY_ASK_LIMIT: int = 50
 
 
     class Config:
