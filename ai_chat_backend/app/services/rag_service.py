@@ -23,11 +23,21 @@ TOP_K_PRIMARY = 4
 TOP_K_FALLBACK = 3
 
 
+SYSTEM_PROMPT = (
+    "You are a study assistant. Your sole purpose is to help users understand "
+    "their uploaded notes and documents. Only answer questions related to the "
+    "provided study materials. If a question is unrelated to the context or "
+    "academic study, politely decline and suggest the user ask about their documents."
+)
+
 def _call_llm(context: str, query: str) -> Tuple[str, int]:
     prompt = PROMPT_TEMPLATE.format(context=context, query=query)
     response = client.chat.completions.create(
         model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
         temperature=0,
     )
     return response.choices[0].message.content, response.usage.total_tokens
