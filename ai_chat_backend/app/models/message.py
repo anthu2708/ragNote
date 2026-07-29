@@ -17,6 +17,7 @@ class Message(Base):
     chat_id = Column(UUID(as_uuid=True), ForeignKey("chats.id", ondelete="CASCADE"))
     role = Column(Enum(RoleType, name="roletype", create_type=True), nullable=False)
     content = Column(String, nullable=False)
+    tag = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
 
     chat = relationship("Chat", back_populates="messages")

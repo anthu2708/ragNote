@@ -17,6 +17,8 @@ Question: {query}
 
 client = OpenAI()
 MODEL = "gpt-4.1-mini"
+REFUSAL_PREFIX = "I can only help with questions about your uploaded documents."
+NO_CONTEXT_PREFIX = "I couldn't find any relevant content in your uploaded documents."
 
 MIN_SCORE = 0.35
 TOP_K_PRIMARY = 4
@@ -24,20 +26,28 @@ TOP_K_FALLBACK = 3
 
 
 SYSTEM_PROMPT = (
-    "You are a study assistant. Your sole purpose is to help users understand "
-    "their uploaded notes and documents. Only answer questions related to the "
-    "provided study materials. If a question is unrelated to the context or "
-    "academic study, politely decline and suggest the user ask about their documents."
+    "You are a document assistant. Your sole purpose is to help users with questions "
+    "about their uploaded documents — any type: notes, resumes, reports, textbooks, etc.\n\n"
+    "ALLOWED: explain, summarize, review, analyze, or answer factual questions about content in the provided documents.\n"
+    "FORBIDDEN — even if the documents contain related content:\n"
+    "- Writing poems, songs, stories, creative fiction, or any creative content\n"
+    "- Writing code or scripts from scratch\n"
+    "- General knowledge questions unrelated to the documents\n"
+    "- Any task that asks you to CREATE new content rather than EXPLAIN existing content\n\n"
+    "If a request asks you to create/write/generate anything, respond ONLY with: "
+    "'I can only help with questions about your uploaded documents. "
+    "Please ask me something about your files.'"
 )
 
-def _call_llm(context: str, query: str) -> Tuple[str, int]:
+def _call_llm(context: str, query: str, history: list | None = None) -> Tuple[str, int]:
     prompt = PROMPT_TEMPLATE.format(context=context, query=query)
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": prompt})
     response = client.chat.completions.create(
         model=MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
+        messages=messages,
         temperature=0,
     )
     return response.choices[0].message.content, response.usage.total_tokens
@@ -57,7 +67,7 @@ def _to_docs_only(results) -> List[Any]:
     return results
 
 
-def get_rag_answer(query_text: str, chat_id: UUID) -> Tuple[str, int]:
+def get_rag_answer(query_text: str, chat_id: UUID, history: list | None = None) -> Tuple[str, int]:
     vs = get_vectorstore()
 
     # === Try 1: search by chat_id ===
@@ -85,7 +95,7 @@ def get_rag_answer(query_text: str, chat_id: UUID) -> Tuple[str, int]:
 
     if docs_primary:
         context = "\n\n".join(doc.page_content for doc in docs_primary)
-        return _call_llm(context, query_text)
+        return _call_llm(context, query_text, history)
 
     # === Fallback: global search ===
     docs_fallback = []
@@ -103,12 +113,11 @@ def get_rag_answer(query_text: str, chat_id: UUID) -> Tuple[str, int]:
 
     if docs_fallback:
         context = "[Global context — not chat-scoped]\n" + "\n\n".join(doc.page_content for doc in docs_fallback)
-        return _call_llm(context, query_text)
+        return _call_llm(context, query_text, history)
 
     # === No context ===
-    no_ctx = (
-        "No retrieved context. Answer from general knowledge. "
-        "If the answer depends on user-specific files, state that no project files "
-        "were found for this chat and suggest uploading or attaching relevant PDFs."
+    return (
+        "I couldn't find any relevant content in your uploaded documents. "
+        "Please upload or attach study materials, then ask your question.",
+        0,
     )
-    return _call_llm(no_ctx, query_text)
