@@ -1,7 +1,12 @@
+import time
 from typing import List, Tuple, Any
 from uuid import UUID
 from openai import OpenAI
 from app.services.rag_store import get_vectorstore
+
+def _log(stage: str, ms: float, **kwargs):
+    parts = " ".join(f"{k}={v}" for k, v in kwargs.items())
+    print(f"RAG_TRACE stage={stage} ms={ms:.0f} {parts}", flush=True)
 
 PROMPT_TEMPLATE = """Use the information in the context below as your primary source when answering.
 You may use outside knowledge only to complement the context, not to override or contradict it.
@@ -45,11 +50,17 @@ def _call_llm(context: str, query: str, history: list | None = None) -> Tuple[st
     if history:
         messages.extend(history)
     messages.append({"role": "user", "content": prompt})
+    t0 = time.perf_counter()
     response = client.chat.completions.create(
         model=MODEL,
         messages=messages,
         temperature=0,
     )
+    _log("llm", (time.perf_counter() - t0) * 1000,
+         model=MODEL,
+         tokens=response.usage.total_tokens,
+         prompt_tokens=response.usage.prompt_tokens,
+         completion_tokens=response.usage.completion_tokens)
     return response.choices[0].message.content, response.usage.total_tokens
 
 
@@ -69,9 +80,11 @@ def _to_docs_only(results) -> List[Any]:
 
 def get_rag_answer(query_text: str, chat_id: UUID, history: list | None = None) -> Tuple[str, int]:
     vs = get_vectorstore()
+    t_total = time.perf_counter()
 
     # === Try 1: search by chat_id ===
     docs_primary = []
+    t0 = time.perf_counter()
     if _has_scores_api(vs):
         try:
             if hasattr(vs, "similarity_search_with_relevance_scores"):
@@ -85,20 +98,28 @@ def get_rag_answer(query_text: str, chat_id: UUID, history: list | None = None) 
                     filter={"chat_id": {"$eq": str(chat_id)}}
                 )
             docs_primary = _filter_by_score(results)
+            scores = [round(s, 3) for _, s in results if s is not None]
         except TypeError:
             docs_primary = _to_docs_only(vs.similarity_search(query_text, k=TOP_K_PRIMARY))
+            scores = []
     else:
         docs_primary = _to_docs_only(vs.similarity_search(
             query_text, k=TOP_K_PRIMARY,
             filter={"chat_id": {"$eq": str(chat_id)}}
         ))
+        scores = []
+    _log("retrieval_primary", (time.perf_counter() - t0) * 1000,
+         docs=len(docs_primary), scores=scores, chat_id=str(chat_id))
 
     if docs_primary:
         context = "\n\n".join(doc.page_content for doc in docs_primary)
-        return _call_llm(context, query_text, history)
+        result = _call_llm(context, query_text, history)
+        _log("total", (time.perf_counter() - t_total) * 1000, path="primary")
+        return result
 
     # === Fallback: global search ===
     docs_fallback = []
+    t0 = time.perf_counter()
     if _has_scores_api(vs):
         try:
             if hasattr(vs, "similarity_search_with_relevance_scores"):
@@ -106,16 +127,24 @@ def get_rag_answer(query_text: str, chat_id: UUID, history: list | None = None) 
             else:
                 results_fb = vs.similarity_search_with_score(query_text, k=TOP_K_FALLBACK)
             docs_fallback = _filter_by_score(results_fb)
+            scores_fb = [round(s, 3) for _, s in results_fb if s is not None]
         except TypeError:
             docs_fallback = _to_docs_only(vs.similarity_search(query_text, k=TOP_K_FALLBACK))
+            scores_fb = []
     else:
         docs_fallback = _to_docs_only(vs.similarity_search(query_text, k=TOP_K_FALLBACK))
+        scores_fb = []
+    _log("retrieval_fallback", (time.perf_counter() - t0) * 1000,
+         docs=len(docs_fallback), scores=scores_fb)
 
     if docs_fallback:
         context = "[Global context — not chat-scoped]\n" + "\n\n".join(doc.page_content for doc in docs_fallback)
-        return _call_llm(context, query_text, history)
+        result = _call_llm(context, query_text, history)
+        _log("total", (time.perf_counter() - t_total) * 1000, path="fallback")
+        return result
 
     # === No context ===
+    _log("total", (time.perf_counter() - t_total) * 1000, path="no_context")
     return (
         "I couldn't find any relevant content in your uploaded documents. "
         "Please upload or attach study materials, then ask your question.",

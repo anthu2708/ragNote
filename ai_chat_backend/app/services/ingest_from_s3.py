@@ -10,6 +10,7 @@ Ingest pipeline:
 from __future__ import annotations
 import io
 import logging
+import time
 from typing import Iterable, List, Tuple
 from uuid import UUID
 import boto3
@@ -139,26 +140,33 @@ async def ingest_file_s3(file_id: str, db: AsyncSession = Depends(get_db)):
     print("[INGEST] status=ingesting key=%s mime=%s", f.key, f.filetype)
 
     try:
+        t_total = time.perf_counter()
+
         # 3) Resolve bucket/key
         if f.key:
             bucket = settings.S3_BUCKET
             key = f.key
         else:
             bucket, key = parse_s3_url(f.url)
-        print("[INGEST] s3 resolve bucket=%s key=%s", bucket, key)
 
         # 4) Download bytes
+        t0 = time.perf_counter()
         data = s3_download_bytes(bucket, key)
-        print("[INGEST] s3 download done bytes=%d", len(data or b""))
+        logger.info("INGEST_TRACE stage=s3_download ms=%.0f bytes=%d file_id=%s",
+                    (time.perf_counter() - t0) * 1000, len(data or b""), file_id)
 
         # 5) Extract text
+        t0 = time.perf_counter()
         text = extract_text(data, mime=f.filetype or "application/octet-stream")
-        pages = text.count("\f") + 1 if text else 0  # hoặc 0 nếu không tách trang
-        logger.info("[INGEST] extract done pages=%d chars=%d", pages, len(text))
+        pages = text.count("\f") + 1 if text else 0
+        logger.info("INGEST_TRACE stage=extract ms=%.0f chars=%d pages=%d file_id=%s",
+                    (time.perf_counter() - t0) * 1000, len(text), pages, file_id)
 
         # 6) Chunk & Upsert
+        t0 = time.perf_counter()
         chunks = chunk_text(text, target_chars=3000, overlap=300)
-        print("[INGEST] chunk done chunks=%d", len(chunks))
+        logger.info("INGEST_TRACE stage=chunk ms=%.0f chunks=%d file_id=%s",
+                    (time.perf_counter() - t0) * 1000, len(chunks), file_id)
 
         meta = {
             "project_id": str(getattr(f, "project_id", "") or ""),
@@ -169,8 +177,13 @@ async def ingest_file_s3(file_id: str, db: AsyncSession = Depends(get_db)):
             "etag": f.etag,
             "mime": f.filetype,
         }
+        t0 = time.perf_counter()
         upsert_chunks(chunks, metadata_common=meta)
-        print("[INGEST] upsert done")
+        logger.info("INGEST_TRACE stage=upsert ms=%.0f chunks=%d file_id=%s",
+                    (time.perf_counter() - t0) * 1000, len(chunks), file_id)
+
+        logger.info("INGEST_TRACE stage=total ms=%.0f file_id=%s",
+                    (time.perf_counter() - t_total) * 1000, file_id)
 
 
         # 7) Mark indexed
