@@ -1,5 +1,6 @@
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.dependencies import get_db, get_current_user
 from app.models.user import User
@@ -7,7 +8,8 @@ from app.models.chat import Chat
 from app.models.message import Message, RoleType
 from app.schemas.chat import ChatAskRequest
 from app.schemas.message import MessageOut
-from app.services.rag_service import get_rag_answer
+from app.services.rag_service import get_rag_answer, REFUSAL_PREFIX, NO_CONTEXT_PREFIX
+SYSTEM_TAGS = {"refusal", "no_context", "legacy"}
 from app.config import settings
 
 router = APIRouter(prefix="/ai", tags=["AI"])
@@ -37,6 +39,18 @@ async def ask_chat(
 
     _check_rate_limit(current_user)
 
+    history_rows = await db.execute(
+        select(Message)
+        .where(Message.chat_id == body.chat_id)
+        .order_by(Message.created_at.asc())
+        .limit(20)
+    )
+    history = [
+        {"role": m.role.value, "content": m.content}
+        for m in history_rows.scalars()
+        if m.tag not in SYSTEM_TAGS
+    ]
+
     user_msg = Message(
         role=RoleType.USER,
         content=body.question,
@@ -44,13 +58,20 @@ async def ask_chat(
     )
     db.add(user_msg)
 
-    answer, tokens_used = get_rag_answer(body.question, chat_id=str(body.chat_id))
+    answer, tokens_used = get_rag_answer(body.question, chat_id=str(body.chat_id), history=history)
     current_user.daily_token_count += tokens_used
+
+    tag = None
+    if answer.startswith(REFUSAL_PREFIX):
+        tag = "refusal"
+    elif answer.startswith(NO_CONTEXT_PREFIX):
+        tag = "no_context"
 
     assistant_msg = Message(
         role=RoleType.ASSISTANT,
         content=answer,
-        chat_id=body.chat_id
+        chat_id=body.chat_id,
+        tag=tag,
     )
     db.add(assistant_msg)
 
