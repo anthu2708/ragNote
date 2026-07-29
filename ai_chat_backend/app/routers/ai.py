@@ -1,3 +1,4 @@
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.dependencies import get_db, get_current_user
@@ -7,8 +8,21 @@ from app.models.message import Message, RoleType
 from app.schemas.chat import ChatAskRequest
 from app.schemas.message import MessageOut
 from app.services.rag_service import get_rag_answer
+from app.config import settings
 
 router = APIRouter(prefix="/ai", tags=["AI"])
+
+
+def _check_rate_limit(user: User) -> None:
+    today = date.today()
+    if user.last_ask_date != today:
+        user.daily_token_count = 0
+        user.last_ask_date = today
+    if user.daily_token_count >= settings.DAILY_TOKEN_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily token limit of {settings.DAILY_TOKEN_LIMIT} reached. Try again tomorrow."
+        )
 
 
 @router.post("/ask", response_model=MessageOut)
@@ -21,6 +35,8 @@ async def ask_chat(
     if not chat or chat.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Chat not found")
 
+    _check_rate_limit(current_user)
+
     user_msg = Message(
         role=RoleType.USER,
         content=body.question,
@@ -28,7 +44,8 @@ async def ask_chat(
     )
     db.add(user_msg)
 
-    answer = get_rag_answer(body.question, chat_id=str(body.chat_id))
+    answer, tokens_used = get_rag_answer(body.question, chat_id=str(body.chat_id))
+    current_user.daily_token_count += tokens_used
 
     assistant_msg = Message(
         role=RoleType.ASSISTANT,

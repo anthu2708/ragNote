@@ -1,8 +1,7 @@
-from sqlalchemy import Column, String, DateTime, func
+from sqlalchemy import Column, String, DateTime, Integer, Date, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from uuid import uuid4
-from datetime import datetime
 from ..database import Base
 
 class User(Base):
@@ -14,6 +13,8 @@ class User(Base):
     name = Column(String, nullable=True)
     avatar = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
+    daily_token_count = Column(Integer, nullable=False, default=0)
+    last_ask_date = Column(Date, nullable=True)
 
     chats = relationship("Chat", back_populates="user", cascade="all, delete-orphan")
 

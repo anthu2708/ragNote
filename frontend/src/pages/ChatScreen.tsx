@@ -121,6 +121,7 @@ const ChatScreen: React.FC = () => {
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
+    const [sendError, setSendError] = useState<string | null>(null);
 
     const listRef = useRef<HTMLDivElement | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -153,6 +154,7 @@ const ChatScreen: React.FC = () => {
     const send = async () => {
         const text = input.trim();
         if (!text || !chatId || isLoading) return;
+        setSendError(null);
 
         const userMsg: ApiMessage = {
             id: crypto.randomUUID(),
@@ -179,8 +181,12 @@ const ChatScreen: React.FC = () => {
                 created_at: aiMsg.created_at,
             };
             setMessages((prev) => [...prev, resMsg]);
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            const status = error?.response?.status;
+            setSendError(status === 429
+                ? "Daily message limit reached. Try again tomorrow."
+                : "Failed to send message. Please try again.");
         } finally {
             setIsLoading(false);
         }
@@ -214,6 +220,9 @@ const ChatScreen: React.FC = () => {
                                     {messages.map((m) => (
                                         <Bubble key={m.id} msg={m}/>
                                     ))}
+                                    {sendError && (
+                                        <p className="text-red-400 text-sm text-right pr-11">{sendError}</p>
+                                    )}
                                     {isLoading && <TypingBubble/>}
                                 </>
                             )}
