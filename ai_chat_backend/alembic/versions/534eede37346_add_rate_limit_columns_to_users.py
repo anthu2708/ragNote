@@ -1,7 +1,7 @@
 """add_rate_limit_columns_to_users
 
 Revision ID: 534eede37346
-Revises: 82167bfb9ba6
+Revises: 3cd5e26c7297
 Create Date: 2026-07-27 22:15:20.047628
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '534eede37346'
-down_revision: Union[str, Sequence[str], None] = '82167bfb9ba6'
+down_revision: Union[str, Sequence[str], None] = '3cd5e26c7297'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
