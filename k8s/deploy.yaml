@@ -1,0 +1,117 @@
+# Deployed to the shared k3s cluster on the anphung.dev VM (same cluster as
+# fraud-detection and safeNest). Applied manually:
+#   gcloud compute scp k8s/deploy.yaml fraud:/tmp/ragnote-deploy.yaml --zone=us-west1-b --project=fraud-detection-505506
+#   gcloud compute ssh fraud --zone=us-west1-b --project=fraud-detection-505506 --command="sudo k3s kubectl apply -f /tmp/ragnote-deploy.yaml"
+#
+# No local Postgres — DATABASE_URL is Neon (external). Secrets live in the
+# `ragnote-secret` k8s Secret, created directly on the cluster, never here.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragnote-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ragnote-backend
+  template:
+    metadata:
+      labels:
+        app: ragnote-backend
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: backend
+          image: ghcr.io/anthu2708/ragnote-backend:4089e9b142a0ff61d01efad344a9e1ce6723947f
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: ragnote-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 300m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  # Name MUST be "backend" — nginx/default.conf in the frontend image
+  # hardcodes proxy_pass http://backend:8000/, same as docker-compose's
+  # service name. Keeping it makes the existing nginx config work
+  # completely unmodified in k8s.
+  name: backend
+spec:
+  selector:
+    app: ragnote-backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragnote-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ragnote-frontend
+  template:
+    metadata:
+      labels:
+        app: ragnote-frontend
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: frontend
+          image: ghcr.io/anthu2708/ragnote-frontend:4089e9b142a0ff61d01efad344a9e1ce6723947f
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ragnote-frontend
+spec:
+  selector:
+    app: ragnote-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ragnote
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  rules:
+    - host: ragnote.anphung.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ragnote-frontend
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - ragnote.anphung.dev
+      secretName: ragnote-tls
