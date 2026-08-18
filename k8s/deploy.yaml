@@ -24,7 +24,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: backend
-          image: ghcr.io/anthu2708/ragnote-backend:4089e9b142a0ff61d01efad344a9e1ce6723947f
+          image: ghcr.io/anthu2708/ragnote-backend:ed3d7415cb82ef8d177f10949484703232e370df
           ports:
             - containerPort: 8000
           envFrom:
@@ -71,7 +71,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: frontend
-          image: ghcr.io/anthu2708/ragnote-frontend:4089e9b142a0ff61d01efad344a9e1ce6723947f
+          image: ghcr.io/anthu2708/ragnote-frontend:ed3d7415cb82ef8d177f10949484703232e370df
           ports:
             - containerPort: 80
           resources:
