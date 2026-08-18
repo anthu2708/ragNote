@@ -21,6 +21,8 @@ jobs:
 
       - name: Build frontend static assets
         working-directory: frontend
+        env:
+          CI: false
         run: |
           npm ci
           npm run build
