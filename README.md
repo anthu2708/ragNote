@@ -2,6 +2,8 @@
 Upload files once, ask questions anytime.  
 A simple Retrieval-Augmented Generation (RAG) app that lets you store documents and query their content with intelligent answers.
 
+**Live:** [ragnote.anphung.dev](https://ragnote.anphung.dev)
+
 #### Built with
 ![React](https://img.shields.io/badge/-React-61DAFB?logo=react&logoColor=black&style=flat-square)
 ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)
